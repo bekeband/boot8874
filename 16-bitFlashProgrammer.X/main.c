@@ -32,6 +32,8 @@
 #include "system.h"
 #include "user.h"
 
+char _EEDATA(32) Table1[16] = "bekemod EEPROM.";
+
 _FOSC(HS2_PLL16 & CSW_FSCM_OFF);
 _FBORPOR(PWRT_OFF & BORV27 & PBOR_OFF & MCLR_EN);   /* Ext MCLR, no brownout */
 _FWDT(WDT_OFF);                                     /* Turns off watchdog timer */
@@ -93,6 +95,8 @@ void ResetDevice(void);
 
 char Buffer[PM_ROW_SIZE*3 + 1];
 
+
+
 /* usec delay program with T2 timer. */
 
 void DelayuSec(long usec)
@@ -113,7 +117,7 @@ void DelayuSec(long usec)
 void FlashLED()
 {
     LATEbits.LATE4 = 1;
-    DelayuSec(2000);
+    DelayuSec(1000);
     LATEbits.LATE4 = 0;
 }
 
@@ -123,7 +127,6 @@ int main(void)
 	uReg32 SourceAddr;
 	uReg32 Delay;
 	
-
         /* TODO FIXME the address !!! */
 	SourceAddr.Val32 = 0x700;
 
@@ -134,28 +137,25 @@ int main(void)
 	Delay.Val32 = ReadLatch(SourceAddr.Word.HW, SourceAddr.Word.LW);
 
         /* Reset immediately, since delayval = 0; */
-	if(Delay.Val[0] == 0)
+/*	if(Delay.Val[0] == 0)
 	{
 		ResetDevice();
-	}
+	}*/
 
-	T2CONbits.T32 = 1; /* to increment every instruction cycle */
-	IFS0bits.T3IF = 0; /* Clear the Timer3 Interrupt Flag */
-	IEC0bits.T3IE = 0; /* Disable Timer3 Interrup Service Routine */
 
-	if((Delay.Val32 & 0x000000FF) != 0xFF)
-	{
+//	if((Delay.Val32 & 0x000000FF) != 0xFF)
+//	{
 		/* Convert seconds into timer count value */
-		Delay.Val32 = ((UWord32)(FCY)) * ((UWord32)(Delay.Val[0]));
+//		Delay.Val32 = ((UWord32)(FCY)) * ((UWord32)(Delay.Val[0]));
 
-		PR3 = Delay.Word.HW;
-		PR2 = Delay.Word.LW;
+//		PR3 = Delay.Word.HW;
+//		PR2 = Delay.Word.LW;
 
 		/* Enable Timer */
-		T2CONbits.TON=1;
-	}
+//		T2CONbits.TON=1;
+//	}
 
-
+        FlashLED();
 
         /* This is main program loop for intake bytes, and commands. .*/
 
@@ -164,6 +164,8 @@ int main(void)
 		char Command;
 
 		GetChar(&Command);
+
+                FlashLED();
 
 		switch(Command)
 		{
@@ -426,13 +428,35 @@ void WriteBuffer(char * ptrData, int Size)
 /******************************************************************************/
 void PutChar(char Char)
 {
+
+    /* TRMT Transmit Shift Register is Empty bit (Read Only) */
+    /* RIDLE: Receiver Idle bit (Read Only) */
+    /* Waiting for transmit shift register empty, and receiver idle bit*/
+//    while(!((U1STAbits.TRMT) && (U1STAbits.RIDLE)));
+    while (!U1STAbits.TRMT);
+    LATEbits.LATE4 = 1;
+//    FlashLED();
+    U1RTS_LAT = 1; /* Set RS485 port to transmit state. */
+    U1TXREG = Char;
+    while (!U1STAbits.TRMT);
+    LATEbits.LATE4 = 0;
+    U1RTS_LAT = 0;  /* Then Reset RS485 port to receive state. (High impedance line.)*/
+
+/*
+
 	while(!U1STAbits.TRMT);
 	
-	U1TXREG = Char;
+	U1TXREG = Char;*/
 }
 /******************************************************************************/
 void GetChar(char * ptrChar)
 {
+
+    /* Set RS485 port to reding data, with set the line driver IC to reding
+     * charcter.
+     *  */
+     U1RTS_LAT = 0;
+
 	while(1)
 	{	
 		/* if timer expired, signal to application to jump to user code */

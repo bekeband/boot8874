@@ -50,6 +50,13 @@ void UART1Conf()
 
 void InitApp(void)
 {
+
+    /* Preset the T2, and T3 timers. */
+
+    T2CONbits.T32 = 1; /* to increment every instruction cycle */
+    IFS0bits.T3IF = 0; /* Clear the Timer3 Interrupt Flag */
+    IEC0bits.T3IE = 0; /* Disable Timer3 Interrup Service Routine */
+
     /* Configure UART, to download the program. */
     UART1Conf();
 
